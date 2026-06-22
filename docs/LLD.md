@@ -6,6 +6,7 @@
 main.py
 api/
   route.py
+  ui.py
   v1/
     audit.py
     reports.py
@@ -28,6 +29,9 @@ prompts/
 util/
   url_validator.py
   http_client.py
+  cache.py
+static/
+  index.html
 ```
 
 ## 2. API Contracts
@@ -48,7 +52,8 @@ util/
 {
   "audit_id": "uuid",
   "status": "completed",
-  "download_url": "/api/v1/reports/{audit_id}"
+  "download_url": "/api/v1/reports/{audit_id}",
+  "summary": {}
 }
 ```
 
@@ -189,7 +194,7 @@ Structured JSON logs include:
 ## 12. Persistence
 
 - Reports stored at `reports/{audit_id}.json`
-- Sample report copied to `output/seo_audit_report.json`
+- Optional Redis cache keyed by normalized audit URL
 
 ## 13. Testing Strategy
 

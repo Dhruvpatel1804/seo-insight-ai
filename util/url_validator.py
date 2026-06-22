@@ -83,12 +83,3 @@ def validate_url(url: str) -> str:
     _check_resolved_ips(hostname, parsed.port)
 
     return normalized
-
-
-def get_http_client_limits() -> dict[str, int]:
-    """Shared HTTP client limits for scraping and external API calls."""
-    return {
-        "timeout": settings.HTTP_TIMEOUT_SECONDS,
-        "max_redirects": settings.MAX_REDIRECTS,
-        "max_response_bytes": settings.MAX_RESPONSE_BYTES,
-    }

@@ -9,6 +9,8 @@ AI-powered SEO page auditor built with FastAPI. The application scrapes a webpag
 - Core Web Vitals via Google PageSpeed Insights (mobile and desktop)
 - AI-powered SEO analysis with structured JSON output
 - Downloadable `seo_audit_report.json`
+- Web UI with audit summary dashboard at `/`
+- Optional Redis caching for repeated audits of the same URL
 
 ## Tech Stack
 
@@ -18,6 +20,7 @@ AI-powered SEO page auditor built with FastAPI. The application scrapes a webpag
 - httpx (async)
 - BeautifulSoup4
 - OpenAI SDK
+- Redis (optional cache)
 - Pipenv
 - Docker
 
@@ -53,6 +56,7 @@ cp example.env .env
 | CORS | `API_CORS_ORIGINS`, `CORS_ALLOW_CREDENTIALS` |
 | Logging | `LOG_LEVEL`, `LOG_DIR`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT` |
 | OpenAI | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_TEMPERATURE` |
+| Redis cache | `REDIS_URL`, `AUDIT_CACHE_TTL_SECONDS` |
 | PageSpeed | `PAGESPEED_API_KEY`, `PAGESPEED_API_URL`, `PAGESPEED_TIMEOUT_SECONDS` |
 | HTTP / security | `HTTP_TIMEOUT_SECONDS`, `HTTP_USER_AGENT`, `MAX_RESPONSE_BYTES`, `MAX_REDIRECTS` |
 | Storage | `REPORTS_DIR` |
@@ -71,6 +75,8 @@ pipenv run uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 Server host, port, and reload behavior can also be controlled via `API_HOST`, `API_PORT`, and `API_RELOAD` in `.env`.
+
+Web UI: [http://localhost:8000/](http://localhost:8000/)
 
 API documentation:
 
@@ -99,7 +105,15 @@ Example response:
 {
   "audit_id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "completed",
-  "download_url": "/api/v1/reports/550e8400-e29b-41d4-a716-446655440000"
+  "download_url": "/api/v1/reports/550e8400-e29b-41d4-a716-446655440000",
+  "summary": {
+    "page_title": "Example Title",
+    "mobile_performance_score": 72.0,
+    "desktop_performance_score": 90.0,
+    "seo_pass_count": 4,
+    "seo_checks": {},
+    "recommended_improvements": []
+  }
 }
 ```
 
@@ -110,21 +124,6 @@ curl -OJ http://localhost:8000/api/v1/reports/{audit_id}
 ```
 
 The downloaded file is named `seo_audit_report.json`.
-
-## Generate Sample Report
-
-Generate the assignment sample report for `https://www.milestoneinternet.com/`:
-
-```bash
-pipenv run python scripts/generate_sample_report.py
-```
-
-If `OPENAI_API_KEY` is configured, the script runs the full AI-powered audit. Otherwise, it generates a sample report using real scraped and PageSpeed data with a deterministic analysis fallback.
-
-Output files:
-
-- `output/seo_audit_report.json`
-- `seo_audit_report.json` (project root copy)
 
 ## Docker
 
@@ -144,9 +143,9 @@ core/           # Config, logging, exceptions
 models/         # Pydantic request/response/report schemas
 services/       # Scraper, SEO validator, PageSpeed, OpenAI, audit orchestration
 prompts/        # OpenAI prompt templates
-util/           # URL validation, HTTP client helpers
+util/           # URL validation, HTTP client, Redis cache
+static/         # Web UI
 reports/        # Persisted audit JSON files
-output/         # Sample report output
 docs/           # HLD, LLD, architecture diagram
 tests/          # Unit tests
 ```
@@ -177,7 +176,6 @@ pipenv run python -m unittest discover -s tests -v
 
 The following are documented for future production hardening but are not implemented in this version:
 
-- Redis caching for PageSpeed and audit results
 - Celery/RQ for background audit processing
 - OpenTelemetry distributed tracing
 - Prometheus metrics and Grafana dashboards

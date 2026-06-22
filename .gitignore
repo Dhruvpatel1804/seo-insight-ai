@@ -37,7 +37,6 @@ Thumbs.db
 # App runtime / generated output
 logs/
 reports/
-output/
 seo_audit_report.json
 
 # Optional local tooling caches

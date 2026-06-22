@@ -4,8 +4,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.route import api_router
+from api.ui import ui_router
 from core.config import settings
-from core.logging import get_logger, setup_logging
+from core.logging import get_logger, log_event, setup_logging
 from util.common import custom_http_exception_handler
 
 logger = get_logger(__name__)
@@ -14,9 +15,9 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
-    logger.info("application_startup", extra={"structured": {"event": "application_startup"}})
+    log_event(logger, "application_startup")
     yield
-    logger.info("application_shutdown", extra={"structured": {"event": "application_shutdown"}})
+    log_event(logger, "application_shutdown")
 
 
 def start_application():
@@ -39,6 +40,7 @@ def start_application():
     )
 
     app.add_exception_handler(HTTPException, custom_http_exception_handler)
+    app.include_router(ui_router)
     app.include_router(api_router)
 
     return app

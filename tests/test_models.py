@@ -8,12 +8,14 @@ from models import (
     AiAnalysis,
     AuditRequest,
     AuditResponse,
+    AuditSummary,
     CoreWebVitals,
     PageDetails,
     PerformanceMetrics,
     SeoAuditReport,
     SeoChecks,
 )
+from services.audit_service import build_audit_summary
 
 
 class TestAuditRequest(unittest.TestCase):
@@ -33,6 +35,30 @@ class TestAuditResponse(unittest.TestCase):
             download_url="/api/v1/reports/abc-123",
         )
         self.assertEqual(response.status, "completed")
+        self.assertIsNone(response.summary)
+
+    def test_response_includes_summary(self):
+        summary = AuditSummary(
+            url="https://www.example.com/",
+            generated_at=datetime.now(timezone.utc),
+            page_title="Example",
+            seo_checks=SeoChecks(
+                title_check="PASS",
+                meta_description_check="PASS",
+                h1_check="PASS",
+                alt_text_check="PASS",
+                content_length_check="PASS",
+            ),
+            seo_pass_count=5,
+            seo_warning_count=0,
+            seo_fail_count=0,
+        )
+        response = AuditResponse(
+            audit_id="abc-123",
+            download_url="/api/v1/reports/abc-123",
+            summary=summary,
+        )
+        self.assertEqual(response.summary.page_title, "Example")
 
 
 class TestSeoAuditReport(unittest.TestCase):
@@ -93,6 +119,14 @@ class TestSeoAuditReport(unittest.TestCase):
                 "ai_analysis",
             },
         )
+
+    def test_build_audit_summary_counts_statuses(self):
+        summary = build_audit_summary(self._sample_report())
+        self.assertEqual(summary.seo_pass_count, 4)
+        self.assertEqual(summary.seo_warning_count, 1)
+        self.assertEqual(summary.seo_fail_count, 0)
+        self.assertEqual(summary.mobile_performance_score, 70.0)
+        self.assertIn("Improvement", summary.recommended_improvements)
 
     def test_seo_checks_reject_invalid_status(self):
         with self.assertRaises(ValidationError):

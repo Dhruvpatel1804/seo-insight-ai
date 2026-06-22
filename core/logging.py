@@ -162,3 +162,11 @@ def log_error(
         error=message,
         **fields,
     )
+
+
+def log_event(logger: logging.Logger, event: str, **fields: Any) -> None:
+    _log_structured(logger, logging.INFO, event, event=event, **fields)
+
+
+def log_cache_event(logger: logging.Logger, event: str, **fields: Any) -> None:
+    log_event(logger, event, **fields)

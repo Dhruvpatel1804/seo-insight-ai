@@ -8,12 +8,13 @@ from models.report import (
     SeoChecks,
 )
 from models.requests import AuditRequest
-from models.responses import AuditResponse
+from models.responses import AuditResponse, AuditSummary
 
 __all__ = [
     "AiAnalysis",
     "AuditRequest",
     "AuditResponse",
+    "AuditSummary",
     "CheckStatus",
     "CoreWebVitals",
     "PageDetails",

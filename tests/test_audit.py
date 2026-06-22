@@ -18,8 +18,14 @@ from models.report import (
     SeoAuditReport,
     SeoChecks,
 )
-from models.responses import AuditResponse
-from services.audit_service import get_report_path, run_audit, save_report
+from models.responses import AuditResponse, AuditSummary
+from services.audit_service import (
+    build_audit_summary,
+    get_report_path,
+    load_report,
+    run_audit,
+    save_report,
+)
 
 
 class TestAuditService(unittest.IsolatedAsyncioTestCase):
@@ -57,6 +63,8 @@ class TestAuditService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["url"], "https://www.example.com/")
         self.assertIn("core_web_vitals", payload)
 
+    @patch("services.audit_service.get_cached_audit", new_callable=AsyncMock, return_value=None)
+    @patch("services.audit_service.set_cached_audit", new_callable=AsyncMock)
     @patch("services.audit_service.analyze_seo", new_callable=AsyncMock)
     @patch("services.audit_service.fetch_core_web_vitals", new_callable=AsyncMock)
     @patch("services.audit_service.scrape_page", new_callable=AsyncMock)
@@ -67,6 +75,8 @@ class TestAuditService(unittest.IsolatedAsyncioTestCase):
         mock_scrape_page,
         mock_fetch_core_web_vitals,
         mock_analyze_seo,
+        mock_set_cached_audit,
+        mock_get_cached_audit,
     ):
         mock_validate_url.return_value = "https://www.example.com/"
         mock_scrape_page.return_value = PageDetails(title="Test Page", word_count=400)
@@ -85,7 +95,77 @@ class TestAuditService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, "completed")
         self.assertTrue(response.download_url.endswith(response.audit_id))
         self.assertIsNotNone(get_report_path(response.audit_id))
+        self.assertIsNotNone(response.summary)
+        self.assertEqual(response.summary.page_title, "Test Page")
+        self.assertEqual(response.summary.mobile_performance_score, 80.0)
         mock_analyze_seo.assert_awaited_once()
+        mock_set_cached_audit.assert_awaited_once()
+
+    @patch("services.audit_service.get_cached_audit", new_callable=AsyncMock)
+    @patch("services.audit_service.validate_url")
+    async def test_run_audit_returns_cached_response(
+        self,
+        mock_validate_url,
+        mock_get_cached_audit,
+    ):
+        report = SeoAuditReport(
+            url="https://www.example.com/",
+            generated_at=datetime.now(timezone.utc),
+            page_details=PageDetails(title="Cached Page", word_count=250),
+            seo_checks=SeoChecks(
+                title_check="PASS",
+                meta_description_check="PASS",
+                h1_check="PASS",
+                alt_text_check="PASS",
+                content_length_check="PASS",
+            ),
+            core_web_vitals=CoreWebVitals(
+                mobile=PerformanceMetrics(performance_score=75.0),
+                desktop=PerformanceMetrics(performance_score=88.0),
+            ),
+            ai_analysis=AiAnalysis(recommended_improvements=["Improve internal linking."]),
+        )
+        audit_id = "550e8400-e29b-41d4-a716-446655440000"
+        save_report(audit_id, report)
+        cached_payload = {
+            "audit_id": audit_id,
+            "status": "completed",
+            "download_url": f"/api/v1/reports/{audit_id}",
+        }
+        mock_get_cached_audit.return_value = cached_payload
+
+        response = await run_audit("https://www.example.com/")
+
+        self.assertEqual(response.audit_id, audit_id)
+        self.assertEqual(response.download_url, cached_payload["download_url"])
+        self.assertIsNotNone(response.summary)
+        self.assertEqual(response.summary.page_title, "Cached Page")
+        mock_validate_url.assert_not_called()
+
+    def test_load_report_returns_saved_report(self):
+        report = SeoAuditReport(
+            url="https://www.example.com/",
+            generated_at=datetime.now(timezone.utc),
+            page_details=PageDetails(title="Stored"),
+            seo_checks=SeoChecks(
+                title_check="PASS",
+                meta_description_check="PASS",
+                h1_check="PASS",
+                alt_text_check="PASS",
+                content_length_check="PASS",
+            ),
+            core_web_vitals=CoreWebVitals(),
+            ai_analysis=AiAnalysis(),
+        )
+        audit_id = "550e8400-e29b-41d4-a716-446655440000"
+        save_report(audit_id, report)
+
+        loaded = load_report(audit_id)
+        summary = build_audit_summary(loaded)
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(summary.page_title, "Stored")
+        self.assertEqual(summary.seo_pass_count, 5)
 
 
 class TestAuditApi(unittest.TestCase):

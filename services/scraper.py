@@ -52,7 +52,7 @@ def parse_html(html: str) -> PageDetails:
 
 
 def _count_words(soup: BeautifulSoup) -> int:
-    content = BeautifulSoup(str(soup), "html.parser")
+    content = BeautifulSoup(soup.decode_contents(), "html.parser")
     for tag in content(["script", "style", "noscript"]):
         tag.decompose()
 
@@ -67,8 +67,6 @@ async def scrape_page(url: str, client: httpx.AsyncClient | None = None) -> Page
     try:
         html = await _fetch_html(client, url)
         return parse_html(html)
-    except ScrapingError:
-        raise
     except httpx.TimeoutException as exc:
         raise ScrapingError("Request timed out while fetching the webpage") from exc
     except httpx.HTTPStatusError as exc:

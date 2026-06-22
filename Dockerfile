@@ -16,7 +16,7 @@ RUN pipenv install --deploy --system
 
 COPY . .
 
-RUN mkdir -p reports logs output
+RUN mkdir -p reports logs
 
 EXPOSE 8000
 

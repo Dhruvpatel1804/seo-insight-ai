@@ -6,11 +6,11 @@ name = "pypi"
 [packages]
 fastapi = "*"
 uvicorn = "*"
-python-dotenv = "*"
 pydantic-settings = "*"
 httpx = "*"
 beautifulsoup4 = "*"
 openai = "*"
+redis = "*"
 
 [dev-packages]
 

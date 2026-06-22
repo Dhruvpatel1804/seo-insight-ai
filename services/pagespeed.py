@@ -7,6 +7,7 @@ from core.config import settings
 from core.exceptions import PageSpeedError
 from core.logging import get_logger, log_pagespeed_latency
 from models.report import CoreWebVitals, PerformanceMetrics
+from util.http_client import create_http_client
 
 logger = get_logger(__name__)
 
@@ -66,12 +67,7 @@ async def fetch_core_web_vitals(
 
     owns_client = client is None
     if owns_client:
-        client = httpx.AsyncClient(
-            timeout=httpx.Timeout(settings.PAGESPEED_TIMEOUT_SECONDS),
-            follow_redirects=True,
-            max_redirects=settings.MAX_REDIRECTS,
-            headers={"User-Agent": settings.HTTP_USER_AGENT},
-        )
+        client = create_http_client(timeout_seconds=settings.PAGESPEED_TIMEOUT_SECONDS)
 
     try:
         mobile_task = _fetch_strategy(url, "mobile", audit_id, client)
@@ -114,8 +110,6 @@ async def _fetch_strategy(
         raise PageSpeedError(
             f"Unable to reach PageSpeed Insights API for {strategy}: {exc}"
         ) from exc
-    except PageSpeedError:
-        raise
     except Exception as exc:
         raise PageSpeedError(
             f"Failed to parse PageSpeed Insights response for {strategy}: {exc}"
