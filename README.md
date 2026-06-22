@@ -1,6 +1,6 @@
 # SEO Insight AI
 
-AI-powered SEO page auditor built with FastAPI. The application scrapes a webpage, validates on-page SEO signals, retrieves Core Web Vitals from Google PageSpeed Insights, generates AI recommendations with OpenAI, and returns a downloadable JSON audit report.
+AI-powered SEO page auditor built with FastAPI. The application scrapes a webpage, validates on-page SEO signals, retrieves Core Web Vitals from Google PageSpeed Insights, generates AI recommendations with OpenAI, and returns a downloadable JSON audit report with an inline summary.
 
 ## Features
 
@@ -8,7 +8,8 @@ AI-powered SEO page auditor built with FastAPI. The application scrapes a webpag
 - SEO validation checks (`PASS`, `FAIL`, `WARNING`)
 - Core Web Vitals via Google PageSpeed Insights (mobile and desktop)
 - AI-powered SEO analysis with structured JSON output
-- Downloadable `seo_audit_report.json`
+- Inline audit summary in API responses (scores, checks, recommendations)
+- Downloadable full report as `seo_audit_report.json`
 - Web UI with audit summary dashboard at `/`
 - Optional Redis caching for repeated audits of the same URL
 
@@ -30,6 +31,7 @@ AI-powered SEO page auditor built with FastAPI. The application scrapes a webpag
 - [Pipenv](https://pipenv.pypa.io/)
 - OpenAI API key
 - Google PageSpeed Insights API key
+- Redis (optional, for audit caching)
 
 ## Setup
 
@@ -47,7 +49,7 @@ pipenv install
 cp example.env .env
 ```
 
-4. Configure `.env` using `example.env` as the reference template. All supported variables are documented there, grouped by concern:
+4. Configure `.env` using `example.env` as the reference template:
 
 | Section | Key variables |
 |---------|----------------|
@@ -61,6 +63,7 @@ cp example.env .env
 | HTTP / security | `HTTP_TIMEOUT_SECONDS`, `HTTP_USER_AGENT`, `MAX_RESPONSE_BYTES`, `MAX_REDIRECTS` |
 | Storage | `REPORTS_DIR` |
 
+Redis is optional. Leave `REDIS_URL` empty or unset to disable caching. When enabled, repeated audits of the same normalized URL return instantly from cache.
 
 ## Run Locally
 
@@ -76,10 +79,7 @@ pipenv run uvicorn main:app --host 0.0.0.0 --port 8000
 
 Server host, port, and reload behavior can also be controlled via `API_HOST`, `API_PORT`, and `API_RELOAD` in `.env`.
 
-Web UI: [http://localhost:8000/](http://localhost:8000/)
-
-API documentation:
-
+- Web UI: [http://localhost:8000/](http://localhost:8000/)
 - Swagger UI: [http://localhost:8000/swagger-docs/](http://localhost:8000/swagger-docs/)
 - ReDoc: [http://localhost:8000/custom-docs/](http://localhost:8000/custom-docs/)
 
@@ -107,12 +107,31 @@ Example response:
   "status": "completed",
   "download_url": "/api/v1/reports/550e8400-e29b-41d4-a716-446655440000",
   "summary": {
+    "url": "https://www.milestoneinternet.com/",
+    "generated_at": "2026-06-22T12:00:00+00:00",
     "page_title": "Example Title",
+    "meta_description": "Example meta description",
+    "word_count": 500,
+    "image_count": 10,
+    "missing_alt_count": 2,
+    "seo_checks": {
+      "title_check": "PASS",
+      "meta_description_check": "PASS",
+      "h1_check": "PASS",
+      "alt_text_check": "WARNING",
+      "content_length_check": "PASS"
+    },
+    "seo_pass_count": 4,
+    "seo_warning_count": 1,
+    "seo_fail_count": 0,
     "mobile_performance_score": 72.0,
     "desktop_performance_score": 90.0,
-    "seo_pass_count": 4,
-    "seo_checks": {},
-    "recommended_improvements": []
+    "mobile_lcp": "2.5 s",
+    "desktop_lcp": "1.8 s",
+    "key_findings": ["Canonical URL is present."],
+    "recommended_improvements": ["Add alt text to 2 images."],
+    "suggested_title": "Optimized Page Title",
+    "suggested_meta_description": "Optimized meta description."
   }
 }
 ```
@@ -133,24 +152,42 @@ Build and run with Docker Compose:
 docker compose up --build
 ```
 
-The API will be available at [http://localhost:8000](http://localhost:8000).
+The API and Web UI will be available at [http://localhost:8000](http://localhost:8000).
+
+Reports and logs are persisted via volume mounts (`./reports`, `./logs`). Add a Redis service to `.env` / Compose if caching is needed in Docker.
 
 ## Project Structure
 
 ```
-api/            # FastAPI routes
+api/            # FastAPI routes (REST + UI)
 core/           # Config, logging, exceptions
 models/         # Pydantic request/response/report schemas
 services/       # Scraper, SEO validator, PageSpeed, OpenAI, audit orchestration
 prompts/        # OpenAI prompt templates
 util/           # URL validation, HTTP client, Redis cache
 static/         # Web UI
-reports/        # Persisted audit JSON files
+reports/        # Persisted audit JSON files (runtime)
+logs/           # Application logs (runtime)
 docs/           # HLD, LLD, architecture diagram
 tests/          # Unit tests
 ```
 
-## Report Schema
+## Response Schemas
+
+### Audit API response (`AuditResponse`)
+
+| Field | Description |
+|-------|-------------|
+| `audit_id` | UUID for this audit |
+| `status` | Always `"completed"` |
+| `download_url` | Path to download the full report |
+| `summary` | Inline `AuditSummary` (see below) |
+
+### Audit summary (`AuditSummary`)
+
+Key fields: `page_title`, `meta_description`, `word_count`, `seo_checks`, `seo_pass_count`, `mobile_performance_score`, `desktop_performance_score`, `key_findings`, `recommended_improvements`, `suggested_title`, `suggested_meta_description`.
+
+### Full report (`SeoAuditReport`)
 
 ```json
 {
@@ -173,8 +210,6 @@ pipenv run python -m unittest discover -s tests -v
 ```
 
 ## Production Enhancements (Future)
-
-The following are documented for future production hardening but are not implemented in this version:
 
 - Celery/RQ for background audit processing
 - OpenTelemetry distributed tracing
