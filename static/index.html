@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SEO Insight AI</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7fb;
+        --panel: #ffffff;
+        --text: #172033;
+        --muted: #667085;
+        --border: #d9e0ea;
+        --primary: #2563eb;
+        --primary-hover: #1d4ed8;
+        --success: #0f766e;
+        --success-bg: #ecfdf5;
+        --warning: #b45309;
+        --warning-bg: #fffbeb;
+        --error: #b42318;
+        --error-bg: #fef3f2;
+        --chip-pass: #dcfce7;
+        --chip-pass-text: #166534;
+        --chip-warning: #fef3c7;
+        --chip-warning-text: #92400e;
+        --chip-fail: #fee2e2;
+        --chip-fail-text: #991b1b;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 48px 20px 64px;
+      }
+      .hero, .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      }
+      .hero {
+        padding: 32px;
+        margin-bottom: 20px;
+      }
+      h1 { margin: 0 0 10px; font-size: 2rem; }
+      h2 {
+        margin: 0 0 14px;
+        font-size: 1.05rem;
+      }
+      p { margin: 0; color: var(--muted); line-height: 1.6; }
+      .card { padding: 24px; }
+      label { display: block; font-weight: 600; margin-bottom: 10px; }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      input[type="url"] {
+        flex: 1 1 420px;
+        min-width: 0;
+        padding: 14px 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+      }
+      button, .download-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 18px;
+        border: 0;
+        border-radius: 12px;
+        font-size: 0.98rem;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      button {
+        background: var(--primary);
+        color: white;
+      }
+      button:hover { background: var(--primary-hover); }
+      button:disabled { opacity: 0.7; cursor: progress; }
+      .status {
+        margin-top: 16px;
+        font-weight: 600;
+      }
+      .status.loading { color: var(--muted); }
+      .status.success { color: var(--success); }
+      .status.error { color: var(--error); }
+      .actions {
+        margin-top: 20px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .download-link {
+        background: #e0e7ff;
+        color: #1e3a8a;
+        pointer-events: none;
+        opacity: 0.5;
+      }
+      .download-link.ready {
+        pointer-events: auto;
+        opacity: 1;
+      }
+      .ghost-btn {
+        background: #f8fafc;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      .hint {
+        margin-top: 10px;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      .hint[hidden] { display: none; }
+
+      .results { margin-top: 24px; }
+      .results[hidden] { display: none; }
+
+      .summary-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .summary-header h2 {
+        margin: 0 0 6px;
+        font-size: 1.35rem;
+      }
+      .summary-meta {
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+      .cache-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #3730a3;
+        font-size: 0.82rem;
+        font-weight: 600;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .metric {
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: #fafbff;
+      }
+      .metric-label {
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+      .metric-sub {
+        margin-top: 4px;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 18px;
+        margin-bottom: 16px;
+        background: #fcfdff;
+      }
+      .panel:last-child { margin-bottom: 0; }
+
+      .check-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+      }
+      .check-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: white;
+        border: 1px solid var(--border);
+        font-size: 0.92rem;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      .chip.pass { background: var(--chip-pass); color: var(--chip-pass-text); }
+      .chip.warning { background: var(--chip-warning); color: var(--chip-warning-text); }
+      .chip.fail { background: var(--chip-fail); color: var(--chip-fail-text); }
+
+      .detail-list {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--text);
+        line-height: 1.6;
+      }
+      .detail-list li + li { margin-top: 8px; }
+
+      .field-block + .field-block { margin-top: 14px; }
+      .field-label {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .field-value {
+        line-height: 1.5;
+        word-break: break-word;
+      }
+
+      pre {
+        margin: 0;
+        padding: 16px;
+        border-radius: 14px;
+        background: #0b1220;
+        color: #d7e2f0;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.88rem;
+      }
+      .raw-json { margin-top: 16px; }
+      .raw-json[hidden] { display: none; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="hero">
+        <h1>SEO Insight AI</h1>
+        <p>Run an AI-powered SEO audit, review key findings instantly, and download the full JSON report.</p>
+      </section>
+
+      <section class="card">
+        <label for="url">Website URL</label>
+        <div class="row">
+          <input id="url" type="url" placeholder="https://example.com" autocomplete="url" />
+          <button id="runAudit" type="button">Run Audit</button>
+        </div>
+        <div id="status" class="status"></div>
+        <div id="hint" class="hint" hidden>Running audit. This may take up to a few minutes…</div>
+
+        <div id="results" class="results" hidden>
+          <div class="summary-header">
+            <div>
+              <h2 id="summaryTitle">Audit summary</h2>
+              <div id="summaryMeta" class="summary-meta"></div>
+            </div>
+            <span id="cacheBadge" class="cache-badge" hidden>Served from cache</span>
+          </div>
+
+          <div id="metrics" class="metrics"></div>
+
+          <div class="panel">
+            <h2>SEO checks</h2>
+            <div id="seoChecks" class="check-grid"></div>
+          </div>
+
+          <div class="panel">
+            <h2>Page overview</h2>
+            <div id="pageOverview"></div>
+          </div>
+
+          <div class="panel">
+            <h2>AI recommendations</h2>
+            <ul id="recommendations" class="detail-list"></ul>
+          </div>
+
+          <div class="panel" id="findingsPanel" hidden>
+            <h2>Key findings</h2>
+            <ul id="findings" class="detail-list"></ul>
+          </div>
+
+          <div class="actions">
+            <a id="downloadReport" class="download-link" href="#" aria-disabled="true">Download full report</a>
+            <button id="toggleJson" class="ghost-btn" type="button">Show raw JSON</button>
+          </div>
+
+          <div id="rawJson" class="raw-json" hidden>
+            <pre id="result"></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const urlInput = document.getElementById("url");
+      const runAuditButton = document.getElementById("runAudit");
+      const statusNode = document.getElementById("status");
+      const hintNode = document.getElementById("hint");
+      const resultsNode = document.getElementById("results");
+      const summaryTitleNode = document.getElementById("summaryTitle");
+      const summaryMetaNode = document.getElementById("summaryMeta");
+      const cacheBadgeNode = document.getElementById("cacheBadge");
+      const metricsNode = document.getElementById("metrics");
+      const seoChecksNode = document.getElementById("seoChecks");
+      const pageOverviewNode = document.getElementById("pageOverview");
+      const recommendationsNode = document.getElementById("recommendations");
+      const findingsPanelNode = document.getElementById("findingsPanel");
+      const findingsNode = document.getElementById("findings");
+      const resultNode = document.getElementById("result");
+      const rawJsonNode = document.getElementById("rawJson");
+      const toggleJsonButton = document.getElementById("toggleJson");
+      const downloadLink = document.getElementById("downloadReport");
+
+      const SEO_CHECK_LABELS = {
+        title_check: "Title tag",
+        meta_description_check: "Meta description",
+        h1_check: "H1 tag",
+        alt_text_check: "Image alt text",
+        content_length_check: "Content length",
+      };
+
+      function setStatus(message, className = "") {
+        statusNode.className = `status ${className}`.trim();
+        statusNode.textContent = message;
+      }
+
+      function resetDownloadLink() {
+        downloadLink.href = "#";
+        downloadLink.classList.remove("ready");
+        downloadLink.setAttribute("aria-disabled", "true");
+      }
+
+      function resetResults() {
+        resultsNode.hidden = true;
+        rawJsonNode.hidden = true;
+        toggleJsonButton.textContent = "Show raw JSON";
+        resultNode.textContent = "";
+        metricsNode.innerHTML = "";
+        seoChecksNode.innerHTML = "";
+        pageOverviewNode.innerHTML = "";
+        recommendationsNode.innerHTML = "";
+        findingsNode.innerHTML = "";
+        findingsPanelNode.hidden = true;
+        cacheBadgeNode.hidden = true;
+      }
+
+      function formatDate(value) {
+        if (!value) return "";
+        return new Date(value).toLocaleString();
+      }
+
+      function formatScore(value) {
+        if (value === null || value === undefined || Number.isNaN(value)) {
+          return "—";
+        }
+        return Math.round(value);
+      }
+
+      function chipClass(status) {
+        if (status === "PASS") return "pass";
+        if (status === "WARNING") return "warning";
+        return "fail";
+      }
+
+      function renderMetric(label, value, subtext = "") {
+        const card = document.createElement("div");
+        card.className = "metric";
+        card.innerHTML = `
+          <div class="metric-label">${label}</div>
+          <div class="metric-value">${value}</div>
+          ${subtext ? `<div class="metric-sub">${subtext}</div>` : ""}
+        `;
+        return card;
+      }
+
+      function renderField(label, value) {
+        const block = document.createElement("div");
+        block.className = "field-block";
+        block.innerHTML = `
+          <div class="field-label">${label}</div>
+          <div class="field-value">${value || "—"}</div>
+        `;
+        return block;
+      }
+
+      function renderListItems(node, items, emptyText) {
+        node.innerHTML = "";
+        if (!items || items.length === 0) {
+          const item = document.createElement("li");
+          item.textContent = emptyText;
+          node.appendChild(item);
+          return;
+        }
+        for (const entry of items) {
+          const item = document.createElement("li");
+          item.textContent = entry;
+          node.appendChild(item);
+        }
+      }
+
+      function showSummary(payload) {
+        const summary = payload.summary;
+        if (!summary) {
+          resultsNode.hidden = false;
+          summaryTitleNode.textContent = "Audit completed";
+          summaryMetaNode.textContent = "Summary unavailable. Download the full report for details.";
+          return;
+        }
+
+        resultsNode.hidden = false;
+        summaryTitleNode.textContent = summary.page_title || "Audit summary";
+        summaryMetaNode.textContent = `${summary.url} · Generated ${formatDate(summary.generated_at)}`;
+
+        metricsNode.appendChild(
+          renderMetric("Mobile score", formatScore(summary.mobile_performance_score), summary.mobile_lcp ? `LCP ${summary.mobile_lcp}` : "")
+        );
+        metricsNode.appendChild(
+          renderMetric("Desktop score", formatScore(summary.desktop_performance_score), summary.desktop_lcp ? `LCP ${summary.desktop_lcp}` : "")
+        );
+        metricsNode.appendChild(
+          renderMetric("SEO checks passed", `${summary.seo_pass_count}/5`, `${summary.seo_warning_count} warning · ${summary.seo_fail_count} fail`)
+        );
+        metricsNode.appendChild(
+          renderMetric("Word count", summary.word_count.toLocaleString(), `${summary.image_count} images · ${summary.missing_alt_count} missing alt`)
+        );
+
+        for (const [key, label] of Object.entries(SEO_CHECK_LABELS)) {
+          const status = summary.seo_checks[key];
+          const item = document.createElement("div");
+          item.className = "check-item";
+          item.innerHTML = `
+            <span>${label}</span>
+            <span class="chip ${chipClass(status)}">${status}</span>
+          `;
+          seoChecksNode.appendChild(item);
+        }
+
+        pageOverviewNode.appendChild(renderField("Meta description", summary.meta_description));
+        if (summary.suggested_title) {
+          pageOverviewNode.appendChild(renderField("Suggested title", summary.suggested_title));
+        }
+        if (summary.suggested_meta_description) {
+          pageOverviewNode.appendChild(renderField("Suggested meta description", summary.suggested_meta_description));
+        }
+
+        renderListItems(
+          recommendationsNode,
+          summary.recommended_improvements,
+          "No recommendations returned for this page."
+        );
+
+        if (summary.key_findings && summary.key_findings.length > 0) {
+          findingsPanelNode.hidden = false;
+          renderListItems(findingsNode, summary.key_findings, "");
+        }
+      }
+
+      function showResult(payload) {
+        resultNode.textContent = JSON.stringify(payload, null, 2);
+        showSummary(payload);
+      }
+
+      function getErrorMessage(payload) {
+        if (!payload) return "Something went wrong.";
+        return payload.message || payload.detail || "Something went wrong.";
+      }
+
+      toggleJsonButton.addEventListener("click", () => {
+        const isHidden = rawJsonNode.hidden;
+        rawJsonNode.hidden = !isHidden;
+        toggleJsonButton.textContent = isHidden ? "Hide raw JSON" : "Show raw JSON";
+      });
+
+      runAuditButton.addEventListener("click", async () => {
+        const url = urlInput.value.trim();
+        if (!url) {
+          setStatus("Please enter a URL.", "error");
+          return;
+        }
+
+        runAuditButton.disabled = true;
+        resetDownloadLink();
+        resetResults();
+        hintNode.hidden = false;
+        setStatus("Running audit. This may take up to a few minutes…", "loading");
+
+        const startedAt = performance.now();
+
+        try {
+          const response = await fetch("/api/v1/audit", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json"
+            },
+            body: JSON.stringify({ url })
+          });
+
+          const payload = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            throw new Error(getErrorMessage(payload));
+          }
+
+          showResult(payload);
+          if (payload.download_url) {
+            downloadLink.href = payload.download_url;
+            downloadLink.classList.add("ready");
+            downloadLink.setAttribute("aria-disabled", "false");
+          }
+
+          const durationSeconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+          if (durationSeconds < 5) {
+            cacheBadgeNode.hidden = false;
+            setStatus(`Audit completed in ${durationSeconds}s (likely served from cache).`, "success");
+          } else {
+            setStatus(`Audit completed in ${durationSeconds}s.`, "success");
+          }
+        } catch (error) {
+          setStatus(error.message || "Something went wrong.", "error");
+        } finally {
+          hintNode.hidden = true;
+          runAuditButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,33 +1,23 @@
-# Use Python slim image for lightweight build
-FROM python:3.9-slim
+FROM python:3.10-slim
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Set work directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pipenv
 RUN pip install --no-cache-dir pipenv
 
-# Copy Pipfile and Pipfile.lock
 COPY Pipfile Pipfile.lock ./
+RUN pipenv install --deploy --system
 
-# Install Python dependencies
-RUN pipenv install --deploy --ignore-pipfile
-
-# Copy project
 COPY . .
 
-# Expose port
+RUN mkdir -p reports logs
+
 EXPOSE 8000
 
-# Run the application
-CMD ["pipenv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

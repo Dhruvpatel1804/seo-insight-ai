@@ -1,6 +1,8 @@
 from fastapi import APIRouter
-from api import user_managementAPI
 
-api_router = APIRouter()
+from api.v1 import audit, reports
 
-api_router.include_router(user_managementAPI.router, prefix="/auth", tags=["user_management"])
+api_router = APIRouter(prefix="/api/v1")
+
+api_router.include_router(audit.router, tags=["audit"])
+api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
