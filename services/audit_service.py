@@ -22,6 +22,13 @@ from services.scraper import scrape_page
 from services.seo_validator import validate_seo
 from util.cache import get_audit_cache_key, get_cached_audit, normalize_audit_url, set_cached_audit
 from util.http_client import create_http_client
+from util.langfuse_tracing import (
+    flush_langfuse,
+    langfuse_enabled,
+    langfuse_session,
+    traced,
+    update_current_span_attrs,
+)
 from util.url_validator import validate_url
 
 logger = get_logger(__name__)
@@ -163,9 +170,20 @@ async def _lookup_cached_audit(
     return response_from_cache(cached_audit)
 
 
+@traced("seo-audit", as_type="span")
 async def run_audit(url: str) -> AuditResponse:
     started_at = time.perf_counter()
     audit_id = str(uuid.uuid4())
+
+    with langfuse_session(
+        session_id=audit_id,
+        metadata={"url": url, "audit_id": audit_id},
+        tags=["seo-audit"],
+    ):
+        return await _run_audit_workflow(url, audit_id, started_at)
+
+
+async def _run_audit_workflow(url: str, audit_id: str, started_at: float) -> AuditResponse:
     normalized_input_url = normalize_audit_url(url)
 
     cached_response = await _lookup_cached_audit(
@@ -174,6 +192,11 @@ async def run_audit(url: str) -> AuditResponse:
         log_url=url,
     )
     if cached_response:
+        if langfuse_enabled():
+            update_current_span_attrs(
+                metadata={"cache_hit": True, "normalized_url": normalized_input_url},
+            )
+            flush_langfuse()
         return cached_response
 
     try:
@@ -190,6 +213,11 @@ async def run_audit(url: str) -> AuditResponse:
             log_url=validated_url,
         )
         if cached_response:
+            if langfuse_enabled():
+                update_current_span_attrs(
+                    metadata={"cache_hit": True, "normalized_url": normalized_url},
+                )
+                flush_langfuse()
             return cached_response
 
     log_audit_start(logger, audit_id=audit_id, url=validated_url)
@@ -245,4 +273,5 @@ async def run_audit(url: str) -> AuditResponse:
         )
     except Exception as exc:
         log_error(logger, message=f"Redis cache write failed: {exc}", url=validated_url)
+    flush_langfuse()
     return response

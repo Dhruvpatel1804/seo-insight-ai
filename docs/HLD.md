@@ -13,6 +13,7 @@ The application exposes both a REST API and a browser UI. API responses include 
 - Generate actionable SEO recommendations using structured AI output
 - Return a concise audit summary in the API response for immediate review
 - Cache completed audits in Redis when configured
+- Trace LLM usage and audit runs via Langfuse Cloud when enabled
 - Follow async, service-oriented, production-oriented design principles
 
 ## 3. System Context
@@ -26,6 +27,7 @@ User / API Client / Web UI
       |------> Google PageSpeed Insights API
       |------> OpenAI API
       |------> Redis (optional audit cache)
+      |------> Langfuse Cloud (optional LLM tracing)
       v
 Persisted JSON Report (local filesystem)
 ```
@@ -42,6 +44,7 @@ Persisted JSON Report (local filesystem)
 | PageSpeed Service | Retrieves Lighthouse performance metrics (mobile + desktop) |
 | OpenAI Analyzer | Generates structured AI recommendations |
 | Cache Layer | Optional Redis cache keyed by normalized audit URL |
+| Observability | Optional Langfuse Cloud tracing for audit spans and LLM generations |
 | Report Store | Saves full audit output as JSON files under `reports/` |
 
 ## 5. High-Level Workflow
@@ -56,7 +59,8 @@ Persisted JSON Report (local filesystem)
 8. A canonical JSON report is generated and saved to `reports/{audit_id}.json`
 9. Client receives `audit_id`, `download_url`, and an inline `summary`
 10. Response is written to Redis when `REDIS_URL` is configured
-11. Client downloads the full report via `GET /api/v1/reports/{audit_id}`
+11. Traces are sent to Langfuse Cloud when `LANGFUSE_ENABLED=true` and API keys are set
+12. Client downloads the full report via `GET /api/v1/reports/{audit_id}`
 
 ## 6. External Dependencies
 
@@ -66,31 +70,36 @@ Persisted JSON Report (local filesystem)
 | Google PageSpeed Insights API | Lighthouse metrics for mobile and desktop |
 | OpenAI API | Structured SEO analysis and recommendations |
 | Redis (optional) | Audit response caching by normalized URL |
+| Langfuse Cloud (optional) | LLM tracing and token usage (free plan, no local DB) |
 
 ## 7. Non-Functional Requirements
 
 - Fully async service execution
 - Strong typing with Pydantic v2 models
 - Structured JSON logging (audit, cache, PageSpeed, OpenAI events)
+- Optional Langfuse Cloud tracing (SDK sends traces to hosted Langfuse; no local database)
 - Meaningful API error responses with consistent JSON shape
 - URL validation and request limits to reduce SSRF risk
 - Token-efficient OpenAI prompts (metadata only, no raw HTML)
 - Graceful degradation when Redis is unavailable (audit still runs, cache is skipped)
+- Graceful degradation when Langfuse is unavailable (audit still runs, tracing is skipped)
 
 ## 8. Deployment View
 
 - Containerized FastAPI app using Docker
-- Environment-based configuration via `.env` / `example.env`
+- Single `.env` file for all configuration (`example.env` as template)
 - Local filesystem storage for generated reports (`reports/`)
 - Optional Docker Compose deployment for local/demo use
-- Redis runs separately; set `REDIS_URL` to enable caching
+- Redis optional for audit caching only (`REDIS_URL`)
+- Langfuse Cloud optional for observability (no self-hosted Langfuse stack)
 
 ## 9. Out of Scope
 
-- User authentication
-- Database persistence (reports use filesystem; cache uses Redis only)
+- User authentication in the SEO Insight AI app
+- Database persistence for reports (filesystem + optional Redis cache only)
+- Self-hosted Langfuse infrastructure (Postgres, ClickHouse, MinIO)
 - Multi-page crawling
 - Background job queues
-- Observability stack integration (OpenTelemetry, Prometheus)
+- Full observability stack (OpenTelemetry, Prometheus) beyond Langfuse Cloud
 
 These are documented as future production enhancements in the README.

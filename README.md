@@ -12,6 +12,7 @@ AI-powered SEO page auditor built with FastAPI. The application scrapes a webpag
 - Downloadable full report as `seo_audit_report.json`
 - Web UI with audit summary dashboard at `/`
 - Optional Redis caching for repeated audits of the same URL
+- Optional Langfuse Cloud integration for LLM tracing and token usage (free plan)
 
 ## Tech Stack
 
@@ -22,6 +23,7 @@ AI-powered SEO page auditor built with FastAPI. The application scrapes a webpag
 - BeautifulSoup4
 - OpenAI SDK
 - Redis (optional cache)
+- Langfuse Cloud (optional, free plan)
 - Pipenv
 - Docker
 
@@ -59,11 +61,58 @@ cp example.env .env
 | Logging | `LOG_LEVEL`, `LOG_DIR`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT` |
 | OpenAI | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_TEMPERATURE` |
 | Redis cache | `REDIS_URL`, `AUDIT_CACHE_TTL_SECONDS` |
+| Langfuse | `LANGFUSE_ENABLED`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` |
 | PageSpeed | `PAGESPEED_API_KEY`, `PAGESPEED_API_URL`, `PAGESPEED_TIMEOUT_SECONDS` |
 | HTTP / security | `HTTP_TIMEOUT_SECONDS`, `HTTP_USER_AGENT`, `MAX_RESPONSE_BYTES`, `MAX_REDIRECTS` |
 | Storage | `REPORTS_DIR` |
 
 Redis is optional. Leave `REDIS_URL` empty or unset to disable caching. When enabled, repeated audits of the same normalized URL return instantly from cache.
+
+Langfuse is optional. Sign up at [Langfuse Cloud](https://cloud.langfuse.com), create a project, and add the keys to the **same `.env` file** as all other variables (see below).
+
+> **Important:** API keys alone are not enough — you must set `LANGFUSE_ENABLED=true` or tracing is silently disabled.
+
+## Langfuse Cloud (LLM Observability)
+
+Uses the [Langfuse free plan](https://langfuse.com/pricing). No self-hosted Postgres, ClickHouse, or extra Docker services — traces are sent to Langfuse Cloud over HTTPS.
+
+### Setup
+
+1. Sign up at [https://cloud.langfuse.com](https://cloud.langfuse.com) and create a project.
+2. Copy the project **Public Key** and **Secret Key** from project settings.
+3. Add to your `.env`:
+
+```env
+LANGFUSE_ENABLED=true
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+4. Restart the app. On startup you should see `Langfuse tracing enabled` in the logs.
+5. Run a **new** audit (not a Redis cache hit) and view traces at [https://cloud.langfuse.com](https://cloud.langfuse.com) → **Tracing**.
+
+**US region:** use `LANGFUSE_HOST=https://us.cloud.langfuse.com` if your project is on the US cloud.
+
+### What is traced
+
+| Trace | Type | Captures |
+|-------|------|----------|
+| `seo-audit` | Span | Full audit run, URL, audit ID, session, cache hits |
+| `openai-seo-analysis` | Generation | Model, messages, response, token usage, latency |
+
+Structured JSON logs (`openai_latency` events) are still written to `logs/app.log`.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| No traces in dashboard | Set `LANGFUSE_ENABLED=true` and restart the server |
+| Keys set but no traces | Check logs for `Langfuse API keys are set but LANGFUSE_ENABLED=false` |
+| Only cache hits, no generations | Cached audits skip OpenAI; run a new URL or clear Redis cache |
+| Wrong project / region | Match `LANGFUSE_HOST` to EU vs US cloud and verify keys belong to that project |
+
+Leave `LANGFUSE_ENABLED=false` to disable tracing entirely.
 
 ## Run Locally
 
@@ -154,7 +203,7 @@ docker compose up --build
 
 The API and Web UI will be available at [http://localhost:8000](http://localhost:8000).
 
-Reports and logs are persisted via volume mounts (`./reports`, `./logs`). Add a Redis service to `.env` / Compose if caching is needed in Docker.
+Reports and logs are persisted via volume mounts (`./reports`, `./logs`). Use host Redis for audit caching (`REDIS_URL`) if needed. Langfuse uses the hosted cloud — no extra Docker services required.
 
 ## Project Structure
 
@@ -164,7 +213,7 @@ core/           # Config, logging, exceptions
 models/         # Pydantic request/response/report schemas
 services/       # Scraper, SEO validator, PageSpeed, OpenAI, audit orchestration
 prompts/        # OpenAI prompt templates
-util/           # URL validation, HTTP client, Redis cache
+util/           # URL validation, HTTP client, Redis cache, Langfuse tracing
 static/         # Web UI
 reports/        # Persisted audit JSON files (runtime)
 logs/           # Application logs (runtime)
@@ -212,7 +261,7 @@ pipenv run python -m unittest discover -s tests -v
 ## Production Enhancements (Future)
 
 - Celery/RQ for background audit processing
-- OpenTelemetry distributed tracing
+- OpenTelemetry distributed tracing (beyond Langfuse)
 - Prometheus metrics and Grafana dashboards
 - Azure deployment with managed scaling
 - Multi-page auditing

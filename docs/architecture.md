@@ -10,6 +10,7 @@ flowchart TB
     UI[UI Router]
     Audit[Audit Service]
     Cache[Redis Cache]
+    Langfuse[Langfuse Cloud]
     Scraper[Scraper Service]
     SEO[SEO Validator]
     PSI[PageSpeed Service]
@@ -26,6 +27,7 @@ flowchart TB
     UI --> Browser
     API --> Audit
     Audit --> Cache
+    Audit --> Langfuse
     Audit --> Scraper
     Audit --> PSI
     Audit --> SEO
@@ -45,6 +47,7 @@ sequenceDiagram
     participant A as API
     participant S as Audit Service
     participant R as Redis Cache
+    participant L as Langfuse Cloud
     participant W as Website
     participant P as PageSpeed API
     participant O as OpenAI API
@@ -52,11 +55,13 @@ sequenceDiagram
 
     C->>A: POST /api/v1/audit {url}
     A->>S: run_audit(url)
+    S->>L: start seo-audit span (session_id)
     S->>R: get_cached_audit(normalized_url)
 
     alt Cache hit
         R-->>S: cached AuditResponse
         S->>FS: load_report (if summary missing)
+        S->>L: flush traces
         S-->>A: AuditResponse + summary
         A-->>C: audit_id + download_url + summary
     else Cache miss
@@ -73,10 +78,12 @@ sequenceDiagram
         end
 
         S->>S: validate_seo(page_details)
-        S->>O: analyze_seo(structured data)
+        S->>O: analyze_seo (openai-seo-analysis generation)
         O-->>S: AiAnalysis JSON
+        S->>L: record generation (tokens, latency)
         S->>FS: save_report(audit_id)
         S->>R: set_cached_audit(normalized_url, response)
+        S->>L: flush traces
         S-->>A: AuditResponse + summary
         A-->>C: audit_id + download_url + summary
     end
@@ -96,12 +103,14 @@ flowchart LR
     App[FastAPI App]
     FS[(Local Filesystem)]
     Redis[(Redis - optional)]
+    LangfuseSvc[(Langfuse Cloud)]
     Ext[External APIs]
 
     User --> Docker
     Docker --> App
     App --> FS
     App --> Redis
+    App --> LangfuseSvc
     App --> Ext
 ```
 
@@ -130,6 +139,7 @@ flowchart LR
     AI --> REP
     REP --> SUM
     SUM --> RES
+    RES --> LF[Langfuse Cloud]
     REP --> FS[(reports/{audit_id}.json)]
     RES --> Redis[(Redis cache)]
 ```

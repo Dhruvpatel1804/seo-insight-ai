@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     AUDIT_CACHE_TTL_SECONDS: int = 86_400
 
     # -------------------------------------------------------------------------
+    # Langfuse Cloud (LLM observability — free plan)
+    # -------------------------------------------------------------------------
+    LANGFUSE_ENABLED: bool = False
+    LANGFUSE_PUBLIC_KEY: str | None = None
+    LANGFUSE_SECRET_KEY: str | None = None
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+
+    # -------------------------------------------------------------------------
     # Google PageSpeed Insights
     # -------------------------------------------------------------------------
     PAGESPEED_API_KEY: str | None = None

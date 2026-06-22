@@ -30,6 +30,7 @@ util/
   url_validator.py      # URL validation + SSRF checks
   http_client.py        # Shared httpx.AsyncClient factory
   cache.py              # Redis cache + URL normalization
+  langfuse_tracing.py   # Langfuse init + trace helpers
   common.py             # HTTP exception handler
 static/
   index.html            # Web UI
@@ -152,44 +153,49 @@ Full persisted report combining `url`, `generated_at`, `page_details`, `seo_chec
 ## 4. Audit Service Flow
 
 ```python
-audit_id = uuid4()
-normalized_url = normalize_audit_url(url)
+@traced("seo-audit", as_type="span")
+async def run_audit(url):
+    audit_id = uuid4()
+    with langfuse_session(session_id=audit_id, metadata={...}, tags=["seo-audit"]):
+        return await _run_audit_workflow(url, audit_id, started_at)
 
-# 1. Cache lookup (before URL validation)
-cached = await _lookup_cached_audit(normalized_url, ...)
-if cached:
-    return cached
+async def _run_audit_workflow(url, audit_id, started_at):
+    normalized_url = normalize_audit_url(url)
 
-# 2. Validate URL (SSRF-safe)
-validated_url = validate_url(url)
-normalized_url = normalize_audit_url(validated_url)
+    # 1. Cache lookup (before URL validation)
+    cached = await _lookup_cached_audit(normalized_url, ...)
+    if cached:
+        flush_langfuse()
+        return cached
 
-# 3. Fallback cache lookup if normalization changed
-cached = await _lookup_cached_audit(normalized_url, ...)
-if cached:
-    return cached
+    # 2. Validate URL (SSRF-safe)
+    validated_url = validate_url(url)
+    normalized_url = normalize_audit_url(validated_url)
 
-log_audit_start(...)
+    # 3. Fallback cache lookup if normalization changed
+    ...
 
-# 4. Concurrent data collection (separate HTTP clients)
-http_client = create_http_client()                                    # HTTP_TIMEOUT_SECONDS
-pagespeed_client = create_http_client(timeout_seconds=PAGESPEED_TIMEOUT_SECONDS)
-page_details, core_web_vitals = await asyncio.gather(
-    scrape_page(validated_url, client=http_client),
-    fetch_core_web_vitals(validated_url, audit_id, client=pagespeed_client),
-)
+    log_audit_start(...)
 
-# 5. Analysis and persistence
-seo_checks = validate_seo(page_details)
-ai_analysis = await analyze_seo(...)
-report = SeoAuditReport(...)
-save_report(audit_id, report)
+    # 4. Concurrent data collection (separate HTTP clients)
+    http_client = create_http_client()
+    pagespeed_client = create_http_client(timeout_seconds=PAGESPEED_TIMEOUT_SECONDS)
+    page_details, core_web_vitals = await asyncio.gather(...)
 
-response = build_audit_response(audit_id, report)  # includes AuditSummary
-await set_cached_audit(normalized_url, response.model_dump(mode="json"))
-log_audit_complete(...)
-return response
+    # 5. Analysis and persistence
+    seo_checks = validate_seo(page_details)
+    ai_analysis = await analyze_seo(...)   # @traced generation span
+    report = SeoAuditReport(...)
+    save_report(audit_id, report)
+
+    response = build_audit_response(audit_id, report)
+    await set_cached_audit(normalized_url, response.model_dump(mode="json"))
+    log_audit_complete(...)
+    flush_langfuse()
+    return response
 ```
+
+`main.py` calls `init_langfuse()` on startup and `shutdown_langfuse()` on shutdown (flushes pending traces).
 
 ## 5. Redis Cache Design
 
@@ -203,7 +209,41 @@ Configured via `REDIS_URL` and `AUDIT_CACHE_TTL_SECONDS` (default 86400s).
 | Cache hit | Return cached response; load report from disk if `summary` is missing (legacy entries) |
 | Redis unavailable | Log warning, skip cache read/write, audit proceeds normally |
 
-## 6. Scraper Design
+## 6. Langfuse Cloud Tracing
+
+All Langfuse settings live in the shared `.env` file (see `example.env`).
+
+| Variable | Purpose |
+|----------|---------|
+| `LANGFUSE_ENABLED` | Must be `true` to send traces (keys alone are not enough) |
+| `LANGFUSE_PUBLIC_KEY` | Project public key from Langfuse Cloud |
+| `LANGFUSE_SECRET_KEY` | Project secret key from Langfuse Cloud |
+| `LANGFUSE_HOST` | `https://cloud.langfuse.com` (EU) or `https://us.cloud.langfuse.com` (US) |
+
+Uses the Langfuse **free cloud plan** — no self-hosted Postgres, ClickHouse, Redis, or MinIO for Langfuse. The Python SDK (`langfuse` package) sends traces directly to Langfuse Cloud.
+
+### Implementation (`util/langfuse_tracing.py`)
+
+| Function | Purpose |
+|----------|---------|
+| `init_langfuse()` | Sets SDK env vars on startup; logs warning if keys set but `LANGFUSE_ENABLED=false` |
+| `shutdown_langfuse()` | Flushes pending traces on app shutdown |
+| `flush_langfuse()` | Flushes traces after each audit |
+| `langfuse_session()` | Wraps audit with `propagate_attributes` (session ID, metadata, tags) |
+| `traced()` | Applies Langfuse `@observe` decorator to spans/generations |
+| `update_current_span_attrs()` | Updates span metadata (e.g. cache hits) |
+| `update_current_generation()` | Records model, I/O, token `usage_details`, errors |
+
+### Traced observations
+
+| Observation | Type | Module | Captures |
+|-------------|------|--------|----------|
+| `seo-audit` | Span | `audit_service.run_audit` | URL, audit ID, session, cache hits |
+| `openai-seo-analysis` | Generation | `openai_analyzer.analyze_seo` | Model, messages, output, tokens, latency, errors |
+
+Tracing is active only when `LANGFUSE_ENABLED=true` **and** both API keys are set. Cached audits still create a span but skip the OpenAI generation trace.
+
+## 7. Scraper Design
 
 - Uses shared `create_http_client()` with `HTTP_TIMEOUT_SECONDS`, redirect limit, and user-agent
 - Streams response body with `MAX_RESPONSE_BYTES` cap
@@ -215,7 +255,7 @@ Configured via `REDIS_URL` and `AUDIT_CACHE_TTL_SECONDS` (default 86400s).
 - Removes `script`, `style`, and `noscript` tags from parsed content
 - Counts remaining visible text words
 
-## 7. SEO Validation Rules
+## 8. SEO Validation Rules
 
 | Check | PASS | WARNING | FAIL |
 |-------|------|---------|------|
@@ -225,7 +265,7 @@ Configured via `REDIS_URL` and `AUDIT_CACHE_TTL_SECONDS` (default 86400s).
 | Alt text | No images or all images have alt | Some images missing alt | All images missing alt |
 | Content length | >= 300 words | 100–299 words | < 100 words |
 
-## 8. PageSpeed Integration
+## 9. PageSpeed Integration
 
 - Endpoint: configurable via `PAGESPEED_API_URL` (default Google PageSpeed v5)
 - Strategies: `mobile`, `desktop` (fetched concurrently)
@@ -233,7 +273,7 @@ Configured via `REDIS_URL` and `AUDIT_CACHE_TTL_SECONDS` (default 86400s).
 - Lighthouse performance score and audit display values mapped into `PerformanceMetrics`
 - Uses INP when available, otherwise TBT
 
-## 9. OpenAI Integration
+## 10. OpenAI Integration
 
 - Direct OpenAI SDK usage (no LangChain)
 - Temperature: `0.2` (configurable)
@@ -241,13 +281,14 @@ Configured via `REDIS_URL` and `AUDIT_CACHE_TTL_SECONDS` (default 86400s).
 - Structured output validated with `AiAnalysis` Pydantic model via `chat.completions.parse`
 - Prompt includes only page metadata, SEO check results, and Core Web Vitals metrics
 
-## 10. Logging
+## 11. Logging
 
 Structured JSON logs include:
 
 | Event | When |
 |-------|------|
 | `application_startup` / `application_shutdown` | App lifespan |
+| `langfuse_enabled` | Langfuse tracing initialized successfully |
 | `audit_start` | New audit begins (cache miss) |
 | `audit_complete` | Audit finished with `audit_duration_ms` |
 | `audit_cache_hit` / `audit_cache_miss` / `audit_cache_write` | Redis cache operations |
@@ -256,7 +297,7 @@ Structured JSON logs include:
 | `redis_cache_disabled` | Redis configured but unavailable |
 | `error` | Failures with context fields |
 
-## 11. Error Handling
+## 12. Error Handling
 
 | Failure | HTTP Status |
 |---------|-------------|
@@ -277,7 +318,7 @@ All HTTP errors return:
 }
 ```
 
-## 12. Security Controls
+## 13. Security Controls
 
 - URL scheme restricted to `http` and `https`
 - Hostname/IP SSRF checks (private, loopback, link-local, reserved ranges blocked)
@@ -285,14 +326,14 @@ All HTTP errors return:
 - Redirect and response size limits on HTTP fetches
 - UUID validation before report download
 
-## 13. Persistence
+## 14. Persistence
 
 | Store | Location | Content |
 |-------|----------|---------|
 | Reports | `reports/{audit_id}.json` | Full `SeoAuditReport` |
 | Cache | Redis `audit-cache:{normalized_url}` | Full `AuditResponse` with TTL |
 
-## 14. Web UI
+## 15. Web UI
 
 `static/index.html` provides:
 
@@ -301,7 +342,7 @@ All HTTP errors return:
 - Download link for full report
 - Toggle for raw JSON response
 
-## 15. Testing Strategy
+## 16. Testing Strategy
 
 Unit tests cover:
 

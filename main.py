@@ -8,6 +8,7 @@ from api.ui import ui_router
 from core.config import settings
 from core.logging import get_logger, log_event, setup_logging
 from util.common import custom_http_exception_handler
+from util.langfuse_tracing import init_langfuse, shutdown_langfuse
 
 logger = get_logger(__name__)
 
@@ -15,8 +16,10 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    init_langfuse()
     log_event(logger, "application_startup")
     yield
+    shutdown_langfuse()
     log_event(logger, "application_shutdown")
 
 
