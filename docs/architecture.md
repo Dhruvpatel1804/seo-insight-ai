@@ -23,7 +23,7 @@ flowchart TB
     Browser -->|GET /| UI
     Browser -->|POST /api/v1/audit| API
     Client -->|POST /api/v1/audit| API
-    Client -->|GET /api/v1/reports/{audit_id}| API
+    Client -->|GET /api/v1/reports/<audit_id>| API
     UI --> Browser
     API --> Audit
     Audit --> Cache
@@ -88,7 +88,7 @@ sequenceDiagram
         A-->>C: audit_id + download_url + summary
     end
 
-    C->>A: GET /api/v1/reports/{audit_id}
+    C->>A: GET /api/v1/reports/<audit_id>
     A->>FS: load report file
     FS-->>A: seo_audit_report.json
     A-->>C: downloadable file
@@ -140,7 +140,7 @@ flowchart LR
     REP --> SUM
     SUM --> RES
     RES --> LF[Langfuse Cloud]
-    REP --> FS[(reports/{audit_id}.json)]
+    REP --> FS["reports/<audit_id>.json"]
     RES --> Redis[(Redis cache)]
 ```
 
