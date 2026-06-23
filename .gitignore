@@ -1,6 +1,10 @@
 # Environment
 .env
 .env.*
+*.env
+*.local
+.env.local
+.env.*.local
 !.env.example
 !.env.sample
 
@@ -33,6 +37,12 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets / keys
+*.pem
+*.key
+*.crt
+.secrets/
 
 # App runtime / generated output
 logs/
