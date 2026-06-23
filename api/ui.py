@@ -10,4 +10,5 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 @ui_router.get("/", response_class=FileResponse)
 async def audit_ui() -> FileResponse:
+    """Serve the static audit UI landing page."""
     return FileResponse(STATIC_DIR / "index.html")

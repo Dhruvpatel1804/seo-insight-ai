@@ -24,6 +24,7 @@ async def analyze_seo(
     if not settings.OPENAI_API_KEY:
         raise OpenAIAnalysisError("OpenAI API key is not configured")
 
+    # for logging and tracing purposes, we consider the analysis step as a single generation, even though it may involve multiple calls to OpenAI API in future. This way we can track the overall latency and usage for the entire analysis step in one place.
     if langfuse_enabled():
         update_current_generation(
             model=settings.OPENAI_MODEL,
@@ -41,9 +42,9 @@ async def analyze_seo(
             "role": "user",
             "content": build_user_prompt(
                 url=url,
-                page_details=page_details.model_dump(),
-                seo_checks=seo_checks.model_dump(),
-                core_web_vitals=core_web_vitals.model_dump(),
+                page_details=page_details.model_dump(), # From our scraped page details
+                seo_checks=seo_checks.model_dump(), # From our SEO validation logic (True / False / None)
+                core_web_vitals=core_web_vitals.model_dump(), # From PageSpeed Insights API
             ),
         },
     ]
@@ -51,6 +52,10 @@ async def analyze_seo(
     started_at = time.perf_counter()
     response = None
     try:
+        """Make a single API call to OpenAI to analyze the SEO of the page 
+        based on the provided details, checks, and core web vitals. 
+        The response is expected to be in a structured format that can be 
+        parsed into the AiAnalysis model."""
         response = await client.beta.chat.completions.parse(
             model=settings.OPENAI_MODEL,
             temperature=settings.OPENAI_TEMPERATURE,

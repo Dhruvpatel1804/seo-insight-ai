@@ -18,11 +18,13 @@ router = APIRouter()
 
 @router.get("/health/")
 async def health():
+    """Return a lightweight health check response."""
     return {"status": "healthy", "service": "SEO Insight AI"}
 
 
 @router.post("/audit", response_model=AuditResponse, status_code=status.HTTP_200_OK)
 async def create_audit(request: AuditRequest) -> AuditResponse:
+    """Run an SEO audit for the submitted URL and return the audit summary."""
     url = str(request.url)
 
     try:

@@ -14,6 +14,7 @@ BLOCKED_HOSTNAMES = frozenset(
 )
 
 def _is_restricted_ip(ip_str: str) -> bool:
+    """Return True when an IP address should not be reachable from audits."""
     try:
         ip = ipaddress.ip_address(ip_str)
     except ValueError:
@@ -33,6 +34,7 @@ def _is_restricted_ip(ip_str: str) -> bool:
 
 
 def _check_resolved_ips(hostname: str, port: int | None) -> None:
+    """Resolve a hostname and block private or restricted destinations."""
     try:
         addrinfo = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:

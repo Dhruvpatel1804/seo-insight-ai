@@ -9,6 +9,7 @@ from core.config import settings
 
 
 class JSONFormatter(logging.Formatter):
+    """Format log records as structured JSON."""
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -27,6 +28,7 @@ class JSONFormatter(logging.Formatter):
 
 
 def setup_logging() -> logging.Logger:
+    """Configure file and console logging for the application."""
     os.makedirs(settings.LOG_DIR, exist_ok=True)
 
     formatter = JSONFormatter()
@@ -67,10 +69,12 @@ def setup_logging() -> logging.Logger:
 
 
 def get_logger(name: str) -> logging.Logger:
+    """Return a logger scoped to a module or subsystem name."""
     return logging.getLogger(name)
 
 
 def _log_structured(logger: logging.Logger, level: int, message: str, **fields: Any) -> None:
+    """Emit a log entry with extra structured fields."""
     record = logger.makeRecord(
         logger.name,
         level,
@@ -85,6 +89,7 @@ def _log_structured(logger: logging.Logger, level: int, message: str, **fields: 
 
 
 def log_audit_start(logger: logging.Logger, *, audit_id: str, url: str) -> None:
+    """Log the start of an audit run."""
     _log_structured(logger, logging.INFO, "audit_start", event="audit_start", audit_id=audit_id, url=url)
 
 
@@ -95,6 +100,7 @@ def log_audit_complete(
     url: str,
     audit_duration_ms: float,
 ) -> None:
+    """Log the completion of an audit run and its duration."""
     _log_structured(
         logger,
         logging.INFO,
@@ -113,6 +119,7 @@ def log_pagespeed_latency(
     strategy: str,
     pagespeed_latency_ms: float,
 ) -> None:
+    """Log PageSpeed latency for a specific strategy."""
     _log_structured(
         logger,
         logging.INFO,
@@ -133,6 +140,7 @@ def log_openai_latency(
     completion_tokens: int,
     total_tokens: int,
 ) -> None:
+    """Log OpenAI latency and token usage."""
     _log_structured(
         logger,
         logging.INFO,
@@ -153,6 +161,7 @@ def log_error(
     audit_id: str | None = None,
     **fields: Any,
 ) -> None:
+    """Log an error with structured metadata."""
     _log_structured(
         logger,
         logging.ERROR,
@@ -165,8 +174,10 @@ def log_error(
 
 
 def log_event(logger: logging.Logger, event: str, **fields: Any) -> None:
+    """Log a generic structured event."""
     _log_structured(logger, logging.INFO, event, event=event, **fields)
 
 
 def log_cache_event(logger: logging.Logger, event: str, **fields: Any) -> None:
+    """Log cache lookup and write events."""
     log_event(logger, event, **fields)

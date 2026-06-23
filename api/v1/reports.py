@@ -15,6 +15,7 @@ AUDIT_ID_PATTERN = re.compile(
 
 @router.get("/{audit_id}")
 async def download_report(audit_id: str) -> FileResponse:
+    """Return the saved JSON report for a validated audit ID."""
     if not AUDIT_ID_PATTERN.match(audit_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

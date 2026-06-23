@@ -1,5 +1,9 @@
 from models.report import CheckStatus, PageDetails, SeoChecks
 
+# TODO: we can set this values as per different SEO guidelines in future
+# https://moz.com/
+# https://ahrefs.com/seo/
+
 TITLE_MIN_LENGTH = 10
 TITLE_MAX_LENGTH = 60
 META_MIN_LENGTH = 50

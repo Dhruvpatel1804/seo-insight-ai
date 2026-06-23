@@ -15,6 +15,7 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Manage application startup and shutdown logging."""
     setup_logging()
     init_langfuse()
     log_event(logger, "application_startup")
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
 
 
 def start_application():
+    """Create and configure the FastAPI application instance."""
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.PROJECT_VERSION,
@@ -43,6 +45,7 @@ def start_application():
     )
 
     app.add_exception_handler(HTTPException, custom_http_exception_handler)
+    # UI router first and API router second
     app.include_router(ui_router)
     app.include_router(api_router)
 

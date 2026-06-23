@@ -72,6 +72,7 @@ async def fetch_core_web_vitals(
     try:
         mobile_task = _fetch_strategy(url, "mobile", audit_id, client)
         desktop_task = _fetch_strategy(url, "desktop", audit_id, client)
+        # Run both PageSpeed Insights requests concurrently for mobile and desktop strategies
         mobile, desktop = await asyncio.gather(mobile_task, desktop_task)
         return CoreWebVitals(mobile=mobile, desktop=desktop)
     finally:

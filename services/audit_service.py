@@ -35,16 +35,19 @@ logger = get_logger(__name__)
 
 
 def _reports_dir() -> Path:
+    """Create and return the directory used to store generated reports."""
     path = Path(settings.REPORTS_DIR)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def _report_path(audit_id: str) -> Path:
+    """Build the filesystem path for a specific audit report."""
     return _reports_dir() / f"{audit_id}.json"
 
 
 def save_report(audit_id: str, report: SeoAuditReport) -> Path:
+    """Persist a completed audit report to disk as JSON."""
     path = _report_path(audit_id)
     path.write_text(
         json.dumps(report.model_dump(mode="json"), indent=2),
@@ -54,6 +57,7 @@ def save_report(audit_id: str, report: SeoAuditReport) -> Path:
 
 
 def get_report_path(audit_id: str) -> Path | None:
+    """Return the saved report path when it exists on disk."""
     path = _report_path(audit_id)
     if path.is_file():
         return path
@@ -61,6 +65,7 @@ def get_report_path(audit_id: str) -> Path | None:
 
 
 def load_report(audit_id: str) -> SeoAuditReport | None:
+    """Load a stored report from disk and validate it as a model."""
     path = get_report_path(audit_id)
     if path is None:
         return None
@@ -68,6 +73,7 @@ def load_report(audit_id: str) -> SeoAuditReport | None:
 
 
 def _count_seo_statuses(seo_checks) -> tuple[int, int, int]:
+    """Count how many SEO checks passed, warned, or failed."""
     statuses = seo_checks.model_dump().values()
     return (
         sum(status == "PASS" for status in statuses),
@@ -77,6 +83,7 @@ def _count_seo_statuses(seo_checks) -> tuple[int, int, int]:
 
 
 def _build_key_findings(ai_analysis) -> list[str]:
+    """Collect the top unique findings from AI analysis."""
     findings: list[str] = []
     for field_name in (
         "technical_seo_findings",
@@ -92,6 +99,7 @@ def _build_key_findings(ai_analysis) -> list[str]:
 
 
 def build_audit_summary(report: SeoAuditReport) -> AuditSummary:
+    """Convert the full report into the compact API summary."""
     pass_count, warning_count, fail_count = _count_seo_statuses(report.seo_checks)
     return AuditSummary(
         url=report.url,
@@ -117,6 +125,7 @@ def build_audit_summary(report: SeoAuditReport) -> AuditSummary:
 
 
 def build_audit_response(audit_id: str, report: SeoAuditReport) -> AuditResponse:
+    """Build the API response returned after a successful audit."""
     return AuditResponse(
         audit_id=audit_id,
         download_url=f"/api/v1/reports/{audit_id}",
@@ -125,6 +134,7 @@ def build_audit_response(audit_id: str, report: SeoAuditReport) -> AuditResponse
 
 
 def response_from_cache(cached_audit: dict) -> AuditResponse:
+    """Rehydrate an audit response from a cached Redis payload."""
     response = AuditResponse(**cached_audit)
     if response.summary is not None:
         return response
@@ -141,6 +151,7 @@ async def _lookup_cached_audit(
     audit_id: str,
     log_url: str,
 ) -> AuditResponse | None:
+    """Look up a cached response for a normalized URL and log the result."""
     cache_key = get_audit_cache_key(normalized_url)
     try:
         cached_audit = await get_cached_audit(normalized_url)
@@ -172,6 +183,7 @@ async def _lookup_cached_audit(
 
 @traced("seo-audit", as_type="span")
 async def run_audit(url: str) -> AuditResponse:
+    """Run the full SEO audit workflow or return a cached result."""
     started_at = time.perf_counter()
     audit_id = str(uuid.uuid4())
 
@@ -184,6 +196,7 @@ async def run_audit(url: str) -> AuditResponse:
 
 
 async def _run_audit_workflow(url: str, audit_id: str, started_at: float) -> AuditResponse:
+    """Execute validation, scraping, analysis, persistence, and caching."""
     normalized_input_url = normalize_audit_url(url)
 
     cached_response = await _lookup_cached_audit(
@@ -225,6 +238,8 @@ async def _run_audit_workflow(url: str, audit_id: str, started_at: float) -> Aud
     http_client = create_http_client()
     pagespeed_client = create_http_client(timeout_seconds=settings.PAGESPEED_TIMEOUT_SECONDS)
     try:
+
+        # sequential calls
         page_details, core_web_vitals = await asyncio.gather(
             scrape_page(validated_url, client=http_client),
             fetch_core_web_vitals(validated_url, audit_id, client=pagespeed_client),

@@ -11,6 +11,7 @@ _redis_unavailable_reason: str | None = None
 
 
 def normalize_audit_url(url: str) -> str:
+    """Normalize equivalent website inputs to a single cacheable URL."""
     parsed = urlparse(url.strip())
     hostname = (parsed.hostname or "").lower()
     if hostname.startswith("www."):
@@ -39,10 +40,12 @@ def normalize_audit_url(url: str) -> str:
 
 
 def get_audit_cache_key(url: str) -> str:
+    """Build the Redis key for one normalized audit URL."""
     return f"audit-cache:{normalize_audit_url(url)}"
 
 
 async def get_redis_client():
+    """Create or reuse a Redis client when caching is enabled."""
     global _redis_client, _redis_unavailable_reason
 
     if not settings.REDIS_URL:
@@ -89,6 +92,7 @@ async def get_redis_client():
 
 
 async def get_cached_audit(url: str) -> dict | None:
+    """Read a cached audit response from Redis if it exists."""
     client = await get_redis_client()
     if client is None:
         return None
@@ -101,6 +105,7 @@ async def get_cached_audit(url: str) -> dict | None:
 
 
 async def set_cached_audit(url: str, payload: dict) -> None:
+    """Persist an audit response to Redis with the configured TTL."""
     client = await get_redis_client()
     if client is None:
         return
